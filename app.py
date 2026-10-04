@@ -1,5 +1,5 @@
 """
-app.py — iPod Jukebox: turn a Spotify playlist into a tagged, artwork-complete
+app.py — iPod Revival: turn a Spotify playlist into a tagged, artwork-complete
 music folder ready for your iPod.
 
 Setup:  see README.md

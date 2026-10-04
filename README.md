@@ -1,10 +1,10 @@
-# 🎵 iPod Jukebox
+# 🎵 iPod Revival
 
-**Turn any Spotify playlist into a tagged, cover-art-complete music folder — ready to load onto your iPod.**
+**Dug your old iPod out of a drawer? Give it a new library in minutes.**
 
-No iTunes. No Apple Music subscription. No "unsupported format" errors. Just a playlist in, a folder of properly tagged `.m4a` files out.
+Turn any Spotify playlist into a tagged, cover-art-complete music folder — ready to load onto your iPod. No iTunes. No Apple Music subscription. No "unsupported format" errors. Just a playlist in, a folder of properly tagged `.m4a` files out.
 
-![iPod Jukebox screenshot](screenshot.jpg)
+![iPod Revival screenshot](screenshot.jpg)
 
 ## What it does
 
@@ -31,8 +31,8 @@ Nothing leaves your computer except the search/download requests themselves — 
 ### 2. Download this project and install its dependencies
 
 ```bash
-git clone https://github.com/RoKenobi/ipod-jukebox.git
-cd ipod-jukebox
+git clone https://github.com/RoKenobi/ipod-revival.git
+cd ipod-revival
 pip install -r requirements.txt
 ```
 
