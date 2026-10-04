@@ -1,0 +1,1392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>iPod Music</title>
+<style>
+/* ── Variables ─────────────────────────────────────────────────────────────── */
+:root {
+  --bg:           #000;
+  --surface:      rgba(28, 28, 30, 0.92);
+  --surface-hi:   rgba(44, 44, 46, 0.95);
+  --border:       rgba(255,255,255,0.08);
+  --border-hi:    rgba(255,255,255,0.14);
+  --accent:       #0a84ff;
+  --green:        #30d158;
+  --red:          #ff453a;
+  --orange:       #ff9f0a;
+  --text:         #fff;
+  --text-2:       rgba(235,235,245,0.6);
+  --text-3:       rgba(235,235,245,0.3);
+  --font:         -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --radius:       12px;
+  --radius-sm:    8px;
+  --header-h:     60px;
+}
+
+/* ── Reset ─────────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+button { font-family: var(--font); cursor: pointer; border: none; outline: none; }
+input  { font-family: var(--font); outline: none; border: none; }
+
+/* ── Layout ────────────────────────────────────────────────────────────────── */
+#app  { display: flex; flex-direction: column; height: 100vh; }
+#main { display: flex; flex: 1; overflow: hidden; }
+
+/* ── Header ────────────────────────────────────────────────────────────────── */
+#header {
+  height: var(--header-h);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 20px;
+  background: rgba(18,18,20,0.9);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  z-index: 10;
+}
+#header h1 {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+#header h1 span { color: var(--accent); }
+
+#dropZone {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px dashed var(--border-hi);
+  color: var(--text-2);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+#dropZone:hover, #dropZone.drag-over {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(10,132,255,0.08);
+}
+#dropZone svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+#playlistName {
+  font-size: 13px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.header-right { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+
+#btnDownloadAll {
+  padding: 8px 18px;
+  border-radius: 20px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: all 0.15s ease;
+}
+#btnDownloadAll:hover:not(:disabled) { background: #3395ff; transform: scale(1.02); }
+#btnDownloadAll:active:not(:disabled) { transform: scale(0.97); }
+#btnDownloadAll:disabled { background: rgba(10,132,255,0.3); cursor: default; color: rgba(255,255,255,0.4); }
+
+#btnEndApp {
+  padding: 8px 18px;
+  border-radius: 20px;
+  background: var(--red);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: all 0.15s ease;
+}
+#btnEndApp:hover { background: #ff5c53; transform: scale(1.02); }
+
+#btnSpotify {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  background: var(--green);
+  color: #06280f;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  transition: all 0.15s ease;
+}
+#btnSpotify:hover { background: #3ee56a; transform: scale(1.02); }
+#btnSpotify svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* ── Song list ─────────────────────────────────────────────────────────────── */
+#songList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+#songList::-webkit-scrollbar { width: 6px; }
+#songList::-webkit-scrollbar-track { background: transparent; }
+#songList::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+
+#emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: var(--text-3);
+}
+#emptyState svg { width: 48px; height: 48px; opacity: 0.4; }
+#emptyState p { font-size: 14px; }
+
+/* ── Song row ──────────────────────────────────────────────────────────────── */
+.song-row {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.12s ease;
+  animation: rowIn 0.25s ease both;
+  position: relative;
+}
+.song-row:hover { background: rgba(255,255,255,0.05); }
+.song-row.selected { background: rgba(10,132,255,0.1); }
+
+@keyframes rowIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Thumbnail */
+.row-thumb {
+  grid-row: 1 / 3;
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+}
+.row-thumb img { width: 100%; height: 100%; object-fit: cover; display: none; }
+.row-thumb img.loaded { display: block; }
+.row-thumb svg { width: 18px; height: 18px; color: var(--text-3); }
+
+/* Track info */
+.row-info { grid-column: 2; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+.row-title {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+.row-artist {
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+/* Row right side */
+.row-right {
+  grid-column: 3;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Edit icon buttons */
+.btn-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  transition: all 0.12s ease;
+  opacity: 0;
+}
+.song-row:hover .btn-icon { opacity: 1; }
+.btn-icon:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+.btn-icon:active { transform: scale(0.88); }
+.btn-icon svg { width: 14px; height: 14px; }
+.btn-icon.btn-download { color: var(--accent); }
+.btn-icon.btn-download:hover { background: rgba(10,132,255,0.15); color: var(--accent); }
+.btn-icon.btn-delete { color: var(--red); }
+.btn-icon.btn-delete:hover { background: rgba(255,69,58,0.15); color: var(--red); }
+
+/* Progress bar area */
+.row-progress {
+  grid-column: 2 / 4;
+  grid-row: 2;
+  height: 3px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 2px;
+  margin-top: 6px;
+  overflow: hidden;
+  display: none;
+}
+.row-progress.visible { display: block; }
+.row-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+  width: 0%;
+}
+
+/* ── Status badges ─────────────────────────────────────────────────────────── */
+.badge {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 3px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.badge-waiting    { background: rgba(255,255,255,0.1);  color: var(--text-3); }
+.badge-searching  { background: rgba(10,132,255,0.2);   color: var(--accent); animation: pulse 1.5s ease infinite; }
+.badge-downloading{ background: rgba(10,132,255,0.15);  color: var(--accent); }
+.badge-tagging    { background: rgba(10,132,255,0.15);  color: var(--accent); }
+.badge-done       { background: rgba(48,209,88,0.15);   color: var(--green); }
+.badge-failed     { background: rgba(255,69,58,0.15);   color: var(--red); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.5; }
+}
+
+/* ── Detail panel ──────────────────────────────────────────────────────────── */
+#detailPanel {
+  width: 320px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: rgba(10,10,12,0.6);
+  backdrop-filter: blur(20px);
+}
+
+#detailEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 12px;
+  color: var(--text-3);
+}
+#detailEmpty svg { width: 48px; height: 48px; opacity: 0.3; }
+#detailEmpty p { font-size: 13px; }
+
+#detailContent {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.1) transparent;
+}
+
+/* Artwork */
+#artworkContainer {
+  width: 100%;
+  aspect-ratio: 1;
+  position: relative;
+  background: rgba(255,255,255,0.04);
+  overflow: hidden;
+}
+#artworkImg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.3s ease;
+}
+#artworkPlaceholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+}
+#artworkPlaceholder svg { width: 56px; height: 56px; }
+
+/* Detail info */
+#detailInfo {
+  padding: 16px 16px 8px;
+}
+#detailTitle {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  margin-bottom: 4px;
+}
+#detailArtist {
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+#detailAlbum {
+  font-size: 12px;
+  color: var(--text-2);
+}
+#detailStatus { margin-top: 10px; }
+
+/* In-App Audio Player */
+#audioPlayer {
+  width: 100%;
+  margin-top: 16px;
+  height: 36px;
+  display: none;
+}
+
+/* Detail action buttons */
+#detailActions {
+  padding: 12px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+}
+.action-btn {
+  width: 100%;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition: all 0.12s ease;
+  background: rgba(255,255,255,0.06);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.action-btn:hover { background: rgba(255,255,255,0.1); border-color: var(--border-hi); }
+.action-btn:active { transform: scale(0.97); }
+.action-btn.primary { background: var(--accent); border-color: transparent; color: #fff; font-weight: 600; }
+.action-btn.primary:hover { background: #3395ff; }
+.action-btn.danger  { background: rgba(255,69,58,0.12); color: var(--red); border-color: rgba(255,69,58,0.2); }
+.action-btn.danger:hover  { background: rgba(255,69,58,0.2); }
+
+/* ── Modal ─────────────────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+  animation: fadeIn 0.2s ease;
+}
+.modal-overlay.hidden { display: none; }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.modal {
+  width: 100%;
+  max-width: 520px;
+  background: var(--surface-hi);
+  border-radius: 18px;
+  border: 1px solid var(--border-hi);
+  padding: 24px;
+  animation: slideUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes slideUp {
+  from { transform: translateY(30px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.modal h3 {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+}
+.modal-subtitle {
+  font-size: 13px;
+  color: var(--text-2);
+  margin-bottom: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.modal-input {
+  width: 100%;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px;
+  padding: 10px 12px;
+  margin-bottom: 16px;
+  transition: border-color 0.15s ease;
+}
+.modal-input:focus { border-color: var(--accent); }
+.modal-input::placeholder { color: var(--text-3); }
+
+.modal-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.modal-row .modal-input { margin-bottom: 0; flex: 1; }
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.btn-cancel {
+  padding: 9px 16px;
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.06);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.12s ease;
+  border: 1px solid var(--border);
+}
+.btn-cancel:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+.btn-save {
+  padding: 9px 16px;
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.08);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.12s ease;
+  border: 1px solid var(--border-hi);
+}
+.btn-save:hover { background: rgba(255,255,255,0.14); }
+.btn-primary-action {
+  padding: 9px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  transition: all 0.12s ease;
+  border: none;
+}
+.btn-primary-action:hover { background: #3395ff; }
+.btn-primary-action:active, .btn-save:active, .btn-cancel:active { transform: scale(0.96); }
+
+/* Artwork search in modal */
+.artwork-search-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.artwork-search-row .modal-input { margin-bottom: 0; flex: 1; }
+.btn-search {
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  transition: all 0.12s ease;
+  white-space: nowrap;
+}
+.btn-search:hover { background: #3395ff; }
+
+#artworkResults {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+  min-height: 80px;
+}
+.artwork-option {
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.15s ease;
+  aspect-ratio: 1;
+  position: relative;
+  background: rgba(255,255,255,0.04);
+}
+.artwork-option:hover { border-color: var(--accent); transform: scale(1.03); }
+.artwork-option img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.artwork-option .art-label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 4px 6px;
+  background: rgba(0,0,0,0.75);
+  font-size: 9px;
+  color: var(--text-2);
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.artwork-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+  font-size: 12px;
+  grid-column: 1 / -1;
+}
+
+/* Spotify playlist picker */
+#spotifyPlaylists {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 360px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.1) transparent;
+}
+.spotify-playlist-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.spotify-playlist-row:hover { background: rgba(255,255,255,0.08); }
+.spotify-playlist-row img,
+.spotify-playlist-row .spotify-thumb-fallback {
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-3);
+}
+.spotify-thumb-fallback svg { width: 18px; height: 18px; }
+.spotify-playlist-name {
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.spotify-playlist-count { font-size: 12px; color: var(--text-2); }
+
+/* ── Toast ─────────────────────────────────────────────────────────────────── */
+#toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--surface-hi);
+  border: 1px solid var(--border-hi);
+  border-radius: 20px;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+  opacity: 0;
+  z-index: 200;
+  white-space: nowrap;
+}
+#toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+
+/* ── Progress stat bar at top ──────────────────────────────────────────────── */
+#progressBar {
+  height: 2px;
+  background: transparent;
+  position: relative;
+  overflow: hidden;
+}
+#progressBarFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--green));
+  border-radius: 1px;
+  transition: width 0.4s ease;
+  width: 0%;
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- Progress strip (top of header) -->
+  <div id="progressBar"><div id="progressBarFill"></div></div>
+
+  <!-- Header -->
+  <header id="header">
+    <h1><span>♫</span> iPod Music</h1>
+
+    <label id="dropZone" for="csvInput">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <span id="dropLabel">Drop Spotify CSV</span>
+      <input type="file" id="csvInput" accept=".csv" hidden>
+    </label>
+
+    <div class="header-right">
+      <span id="playlistName"></span>
+      <button id="btnSpotify" title="Import a playlist directly from Spotify">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm4.59 14.4a.62.62 0 01-.86.21c-2.36-1.44-5.32-1.77-8.81-.97a.63.63 0 01-.28-1.22c3.82-.87 7.1-.5 9.74 1.12.3.18.39.57.21.86zm1.22-2.72a.78.78 0 01-1.07.26c-2.7-1.66-6.82-2.14-10.02-1.17a.78.78 0 11-.45-1.49c3.65-1.1 8.19-.57 11.28 1.33.37.23.49.72.26 1.07zm.1-2.83c-3.24-1.92-8.59-2.1-11.68-1.16a.94.94 0 11-.54-1.79c3.55-1.08 9.43-.87 13.15 1.34a.94.94 0 01-.93 1.61z"/></svg>
+        Spotify
+      </button>
+      <button id="btnDownloadAll" disabled>Download All</button>
+      <button id="btnEndApp" title="Safely shutdown app">Power Off</button>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <div id="main">
+
+    <!-- Song list -->
+    <section id="songList">
+      <div id="emptyState">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+          <path d="M9 18V5l12-2v13"/>
+          <circle cx="6" cy="18" r="3"/>
+          <circle cx="18" cy="16" r="3"/>
+        </svg>
+        <p>Drop a Spotify CSV to get started</p>
+      </div>
+    </section>
+
+    <!-- Detail panel -->
+    <aside id="detailPanel">
+      <div id="detailEmpty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <path d="M9 12h6M12 9v6"/>
+        </svg>
+        <p>Select a track</p>
+      </div>
+
+      <div id="detailContent" style="display:none">
+        <div id="artworkContainer">
+          <img id="artworkImg" src="" alt="">
+          <div id="artworkPlaceholder">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+              <path d="M9 18V5l12-2v13"/>
+              <circle cx="6" cy="18" r="3"/>
+              <circle cx="18" cy="16" r="3"/>
+            </svg>
+          </div>
+        </div>
+
+        <div id="detailInfo">
+          <h2 id="detailTitle"></h2>
+          <p id="detailArtist"></p>
+          <p id="detailAlbum"></p>
+          <div id="detailStatus" style="margin-top:10px"></div>
+          
+          <!-- In-App Audio Player -->
+          <audio id="audioPlayer" controls></audio>
+        </div>
+
+        <div id="detailActions">
+          <button class="action-btn primary" id="btnRedownload">Re-download</button>
+          <button class="action-btn"         id="btnEditLink">Edit YouTube Link</button>
+          <button class="action-btn"         id="btnChangeArtwork">Change Artwork</button>
+          <button class="action-btn danger"  id="btnDeleteTrack">Delete Song</button>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<!-- Edit Link Modal -->
+<div class="modal-overlay hidden" id="editLinkModal">
+  <div class="modal">
+    <h3>YouTube Link</h3>
+    <p class="modal-subtitle" id="editLinkSubtitle"></p>
+    <input class="modal-input" id="editLinkInput" type="url" placeholder="Paste YouTube URL, or leave blank to auto-search">
+    <div class="modal-actions">
+      <button class="btn-cancel"         id="editLinkCancel">Cancel</button>
+      <button class="btn-save"           id="editLinkSave">Save</button>
+      <button class="btn-primary-action" id="editLinkSaveDownload">Save & Re-download</button>
+    </div>
+  </div>
+</div>
+
+<!-- Artwork Modal -->
+<div class="modal-overlay hidden" id="artworkModal">
+  <div class="modal">
+    <h3>Change Artwork</h3>
+    <p class="modal-subtitle" id="artworkModalSubtitle"></p>
+    <div class="artwork-search-row">
+      <input class="modal-input" id="artworkSearchInput" type="text" placeholder="Search iTunes...">
+      <button class="btn-search" id="artworkSearchBtn">Search</button>
+    </div>
+    <div id="artworkResults"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="artworkModalCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Spotify Playlist Picker Modal -->
+<div class="modal-overlay hidden" id="spotifyModal">
+  <div class="modal">
+    <h3>Import from Spotify</h3>
+    <p class="modal-subtitle">Pick a playlist to load its tracks directly — no CSV needed</p>
+    <div id="spotifyPlaylists"><div class="artwork-loading">Loading playlists…</div></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="spotifyModalCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────────
+
+const state = {
+  tracks: {},
+  playlist: "",
+  selectedId: null,
+};
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+
+let ws;
+let shuttingDown = false;
+function connectWS() {
+  ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+  ws.onclose = () => { if (!shuttingDown) setTimeout(connectWS, 2000); };
+}
+
+function handleMessage(msg) {
+  if (msg.type === "state") {
+    state.tracks = {};
+    msg.tracks.forEach(t => state.tracks[t.id] = t);
+    state.playlist = msg.playlist;
+    renderAll();
+  } else if (msg.type === "track_update") {
+    state.tracks[msg.track.id] = msg.track;
+    updateRow(msg.track);
+    if (state.selectedId === msg.track.id) renderDetail(msg.track);
+    updateOverallProgress();
+  } else if (msg.type === "all_done") {
+    showToast("All downloads complete!");
+    document.getElementById("btnDownloadAll").textContent = "Download All";
+  }
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+
+function renderAll() {
+  const list = document.getElementById("songList");
+  const empty = document.getElementById("emptyState");
+  const tracks = Object.values(state.tracks);
+
+  if (!tracks.length) {
+    empty.style.display = "";
+    list.querySelectorAll(".song-row").forEach(r => r.remove());
+    return;
+  }
+
+  empty.style.display = "none";
+  document.getElementById("btnDownloadAll").disabled = false;
+  document.getElementById("playlistName").textContent = state.playlist;
+
+  // Remove old rows
+  list.querySelectorAll(".song-row").forEach(r => r.remove());
+
+  tracks.forEach((t, idx) => {
+    const row = makeRow(t);
+    row.style.animationDelay = `${Math.min(idx * 18, 400)}ms`;
+    list.appendChild(row);
+  });
+
+  // A full re-render (e.g. after a delete) rebuilds every row, so re-apply the highlight
+  if (state.selectedId) {
+    const sel = list.querySelector(`.song-row[data-id="${state.selectedId}"]`);
+    if (sel) sel.classList.add("selected");
+  }
+
+  updateOverallProgress();
+}
+
+function makeRow(t) {
+  const row = document.createElement("div");
+  row.className = "song-row";
+  row.dataset.id = t.id;
+  row.innerHTML = rowHTML(t);
+  row.addEventListener("click", (e) => {
+    if (e.target.closest(".btn-icon")) return;
+    selectTrack(t.id);
+  });
+  row.querySelector(".btn-download").addEventListener("click", () => requestDownload(t.id));
+  row.querySelector(".btn-link").addEventListener("click",     () => openEditLink(t.id));
+  row.querySelector(".btn-art").addEventListener("click",      () => openArtworkModal(t.id));
+  row.querySelector(".btn-delete").addEventListener("click",   () => promptDelete(t.id));
+  return row;
+}
+
+function rowHTML(t) {
+  const statusHTML = statusBadge(t);
+  const thumbStyle = t.artwork_url
+    ? `<img src="${t.artwork_url}" class="loaded" alt="" onerror="this.style.display='none'">`
+    : musicNoteIcon();
+
+  const progress = (t.status === "downloading" || t.status === "tagging")
+    ? `<div class="row-progress visible"><div class="row-progress-fill" style="width:${t.progress}%"></div></div>`
+    : `<div class="row-progress"></div>`;
+
+  return `
+    <div class="row-thumb">${thumbStyle}</div>
+    <div class="row-info">
+      <span class="row-title">${esc(t.title)}</span>
+      <span class="row-artist">${esc(t.artist)}</span>
+    </div>
+    <div class="row-right">
+      ${statusHTML}
+      <button class="btn-icon btn-download" title="Download this song">${downloadIcon()}</button>
+      <button class="btn-icon btn-link"     title="Edit YouTube link">${linkIcon()}</button>
+      <button class="btn-icon btn-art"      title="Change artwork">${imageIcon()}</button>
+      <button class="btn-icon btn-delete"   title="Remove song">${xIcon()}</button>
+    </div>
+    ${progress}
+  `;
+}
+
+function updateRow(t) {
+  const row = document.querySelector(`.song-row[data-id="${t.id}"]`);
+  if (!row) return;
+
+  // Update badge
+  const right = row.querySelector(".row-right");
+  
+  // Replace everything except buttons
+  while (right.firstChild && !right.firstChild.classList?.contains("btn-icon")) {
+    right.removeChild(right.firstChild);
+  }
+  right.insertAdjacentHTML("afterbegin", statusBadge(t));
+
+  // Update progress bar
+  const prog = row.querySelector(".row-progress");
+  const fill = row.querySelector(".row-progress-fill");
+  if (t.status === "downloading" || t.status === "tagging") {
+    prog.classList.add("visible");
+    fill.style.width = t.progress + "%";
+  } else if (t.status === "done") {
+    prog.classList.add("visible");
+    fill.style.width = "100%";
+    fill.style.background = "var(--green)";
+  } else {
+    prog.classList.remove("visible");
+  }
+
+  // Update thumbnail if artwork just arrived
+  if (t.artwork_url) {
+    const thumb = row.querySelector(".row-thumb");
+    let img = thumb.querySelector("img");
+    if (!img) {
+      thumb.innerHTML = `<img src="${t.artwork_url}" class="loaded" alt="" onerror="this.style.display='none'">`;
+    } else if (img.src !== t.artwork_url) {
+      img.src = t.artwork_url;
+      img.classList.add("loaded");
+    }
+  }
+}
+
+// ── Detail panel ──────────────────────────────────────────────────────────────
+
+function selectTrack(id) {
+  state.selectedId = id;
+  document.querySelectorAll(".song-row").forEach(r => r.classList.remove("selected"));
+  const row = document.querySelector(`.song-row[data-id="${id}"]`);
+  if (row) row.classList.add("selected");
+  renderDetail(state.tracks[id]);
+}
+
+function renderDetail(t) {
+  if (!t) {
+    document.getElementById("detailEmpty").style.display = "flex";
+    document.getElementById("detailContent").style.display = "none";
+    return;
+  }
+
+  document.getElementById("detailEmpty").style.display = "none";
+  const content = document.getElementById("detailContent");
+  content.style.display = "flex";
+
+  document.getElementById("detailTitle").textContent  = t.title;
+  document.getElementById("detailArtist").textContent = t.artist;
+  document.getElementById("detailAlbum").textContent  = t.album;
+
+  const artImg = document.getElementById("artworkImg");
+  const artPh  = document.getElementById("artworkPlaceholder");
+  if (t.artwork_url) {
+    artImg.src   = t.artwork_url;
+    artImg.style.display = "block";
+    artPh.style.display  = "none";
+  } else {
+    artImg.style.display = "none";
+    artPh.style.display  = "flex";
+  }
+
+  // Status in detail
+  const statusDiv = document.getElementById("detailStatus");
+  statusDiv.innerHTML = "";
+  if (t.status === "failed") {
+    statusDiv.innerHTML = `<span class="badge badge-failed">Failed — ${esc(t.error || "Unknown error")}</span>`;
+  } else if (t.status === "done") {
+    const artBadge = t.artwork_status === "failed"
+      ? `<span class="badge badge-failed" style="margin-left:6px">No artwork</span>`
+      : "";
+    statusDiv.innerHTML = `<span class="badge badge-done">Downloaded</span>${artBadge}`;
+  } else if (t.status !== "waiting") {
+    statusDiv.innerHTML = statusBadge(t);
+  }
+
+  // Audio Player logic — keyed on the track id so a status update mid-song
+  // doesn't reassign src and restart playback from zero.
+  const player = document.getElementById("audioPlayer");
+  if (t.status === "done" && t.url_path) {
+    if (player.dataset.trackId !== t.id || player.dataset.urlPath !== t.url_path) {
+      player.dataset.trackId = t.id;
+      player.dataset.urlPath = t.url_path;
+      player.src = t.url_path;
+    }
+    player.style.display = "block";
+  } else if (player.dataset.trackId) {
+    player.pause();
+    player.removeAttribute("src");
+    player.load();
+    delete player.dataset.trackId;
+    delete player.dataset.urlPath;
+    player.style.display = "none";
+  }
+
+  // Wire up detail action buttons
+  document.getElementById("btnRedownload").onclick    = () => requestDownload(t.id);
+  document.getElementById("btnEditLink").onclick      = () => openEditLink(t.id);
+  document.getElementById("btnChangeArtwork").onclick = () => openArtworkModal(t.id);
+  document.getElementById("btnDeleteTrack").onclick   = () => promptDelete(t.id);
+}
+
+// ── Overall progress bar ──────────────────────────────────────────────────────
+
+function updateOverallProgress() {
+  const all = Object.values(state.tracks);
+  if (!all.length) return;
+  const done = all.filter(t => t.status === "done" || t.status === "failed").length;
+  const pct  = (done / all.length) * 100;
+  document.getElementById("progressBarFill").style.width = pct + "%";
+}
+
+// ── API calls & Logic ─────────────────────────────────────────────────────────
+
+async function startDownloadAll() {
+  document.getElementById("btnDownloadAll").textContent = "Downloading…";
+  await fetch("/api/start-download", { method: "POST" });
+}
+
+async function downloadOne(id, force = false) {
+  await fetch(`/api/download/${id}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ force }),   // force deletes the old file so it isn't skipped
+  });
+}
+
+// Single entry point for both the row ⬇ icon and the detail panel's Re-download.
+// An already-downloaded track has to be confirmed, because forcing replaces the file.
+async function requestDownload(id) {
+  const t = state.tracks[id];
+  if (!t) return;
+  if (t.status === "done") {
+    if (!confirm(`"${t.title}" is already downloaded. Download it again and replace the file?`)) return;
+    await downloadOne(id, true);
+    showToast(`Re-downloading "${t.title}"…`);
+  } else {
+    await downloadOne(id, false);
+    showToast(`Downloading "${t.title}"…`);
+  }
+}
+
+async function saveYTUrl(id, url, andDownload) {
+  await fetch(`/api/set-yt-url/${id}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  });
+  if (andDownload) downloadOne(id, true);
+}
+
+async function setArtwork(id, url) {
+  await fetch(`/api/set-artwork/${id}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  });
+}
+
+async function searchArtwork(query) {
+  const res = await fetch("/api/search-artwork", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+  });
+  const data = await res.json();
+  return data.results || [];
+}
+
+async function promptDelete(id) {
+  const t = state.tracks[id];
+  if (!t) return;
+  
+  if (t.status === "done") {
+    if (!confirm(`Are you sure you want to delete the downloaded file for "${t.title}"?`)) {
+      return;
+    }
+  }
+  
+  await fetch(`/api/track/${id}`, { method: "DELETE" });
+  showToast("Track deleted");
+  if (state.selectedId === id) {
+    state.selectedId = null;
+    renderDetail(null);
+  }
+}
+
+// ── Power Off ─────────────────────────────────────────────────────────────────
+document.getElementById("btnEndApp").addEventListener("click", async () => {
+  if (confirm("Are you sure you want to shut down the server?")) {
+    shuttingDown = true;
+    try { ws.close(); } catch (e) {}   // otherwise the open socket delays uvicorn's exit
+    document.body.innerHTML = "<h2 style='color:white; text-align:center; margin-top:20vh;'>Server Offline. You can safely close this tab.</h2>";
+    try {
+      await fetch("/api/shutdown", { method: "POST" });
+    } catch (e) {}
+  }
+});
+
+// ── CSV upload ────────────────────────────────────────────────────────────────
+
+async function uploadCSV(file) {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res  = await fetch("/api/upload-csv", { method: "POST", body: fd });
+  const data = await res.json();
+  showToast(`Loaded ${data.count} tracks from "${data.playlist}"`);
+}
+
+// ── Spotify import ────────────────────────────────────────────────────────────
+
+document.getElementById("btnSpotify").addEventListener("click", openSpotifyModal);
+document.getElementById("spotifyModalCancel").onclick = () => hideModal("spotifyModal");
+
+async function openSpotifyModal() {
+  const res = await fetch("/api/spotify/status");
+  const { connected } = await res.json();
+  if (!connected) {
+    // Full navigation (not fetch) — Spotify's login page can't be shown in an iframe/XHR
+    window.location.href = "/api/spotify/login";
+    return;
+  }
+  showModal("spotifyModal");
+  loadSpotifyPlaylists();
+}
+
+async function loadSpotifyPlaylists() {
+  const list = document.getElementById("spotifyPlaylists");
+  list.innerHTML = `<div class="artwork-loading">Loading playlists…</div>`;
+  let data;
+  try {
+    const res = await fetch("/api/spotify/playlists");
+    if (!res.ok) throw new Error((await res.json()).detail || "Request failed");
+    data = await res.json();
+  } catch (e) {
+    list.innerHTML = `<div class="artwork-loading">Couldn't load playlists: ${esc(e.message)}</div>`;
+    return;
+  }
+  if (!data.playlists.length) {
+    list.innerHTML = `<div class="artwork-loading">No playlists found on this account</div>`;
+    return;
+  }
+  list.innerHTML = "";
+  data.playlists.forEach(p => {
+    const row = document.createElement("div");
+    row.className = "spotify-playlist-row";
+    const thumb = p.image_url
+      ? `<img src="${p.image_url}" alt="">`
+      : `<div class="spotify-thumb-fallback">${musicNoteIcon()}</div>`;
+    row.innerHTML = `
+      ${thumb}
+      <div style="min-width:0; flex:1">
+        <div class="spotify-playlist-name">${esc(p.name)}</div>
+        <div class="spotify-playlist-count">${p.tracks_total} track${p.tracks_total === 1 ? "" : "s"}</div>
+      </div>
+    `;
+    row.addEventListener("click", () => importSpotifyPlaylist(p.id, p.name));
+    list.appendChild(row);
+  });
+}
+
+async function importSpotifyPlaylist(id, name) {
+  const list = document.getElementById("spotifyPlaylists");
+  list.innerHTML = `<div class="artwork-loading">Importing "${esc(name)}"…</div>`;
+  try {
+    const res = await fetch(`/api/spotify/import/${id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || "Import failed");
+    const data = await res.json();
+    hideModal("spotifyModal");
+    showToast(`Loaded ${data.count} tracks from "${data.playlist}"`);
+  } catch (e) {
+    list.innerHTML = `<div class="artwork-loading">Import failed: ${esc(e.message)}</div>`;
+  }
+}
+
+// Coming back from the OAuth redirect — surface the result, then clean the URL
+(function handleSpotifyRedirect() {
+  const params = new URLSearchParams(window.location.search);
+  const spotify = params.get("spotify");
+  if (!spotify) return;
+  history.replaceState({}, "", window.location.pathname);
+  if (spotify === "connected") {
+    showToast("Connected to Spotify");
+    openSpotifyModal();
+  } else if (spotify === "error") {
+    showToast("Spotify connection failed — try again");
+  }
+})();
+
+// ── Edit Link Modal ───────────────────────────────────────────────────────────
+
+let editLinkTrackId = null;
+
+function openEditLink(id) {
+  editLinkTrackId = id;
+  const t = state.tracks[id];
+  document.getElementById("editLinkSubtitle").textContent = `${t.artist} — ${t.title}`;
+  document.getElementById("editLinkInput").value = t.yt_url_used || t.yt_url || "";
+  showModal("editLinkModal");
+}
+
+document.getElementById("editLinkCancel").onclick = () => hideModal("editLinkModal");
+document.getElementById("editLinkSave").onclick = async () => {
+  const url = document.getElementById("editLinkInput").value.trim();
+  await saveYTUrl(editLinkTrackId, url, false);
+  hideModal("editLinkModal");
+  showToast("Link saved");
+};
+document.getElementById("editLinkSaveDownload").onclick = async () => {
+  const url = document.getElementById("editLinkInput").value.trim();
+  await saveYTUrl(editLinkTrackId, url, true);
+  hideModal("editLinkModal");
+  showToast("Re-downloading…");
+};
+
+// ── Artwork Modal ─────────────────────────────────────────────────────────────
+
+let artworkTrackId = null;
+
+function openArtworkModal(id) {
+  artworkTrackId = id;
+  const t = state.tracks[id];
+  document.getElementById("artworkModalSubtitle").textContent = `${t.artist} — ${t.title}`;
+  document.getElementById("artworkSearchInput").value = `${t.artist} ${t.title}`;
+  document.getElementById("artworkResults").innerHTML = "";
+  showModal("artworkModal");
+  doArtworkSearch(`${t.artist} ${t.title}`);
+}
+
+document.getElementById("artworkModalCancel").onclick = () => hideModal("artworkModal");
+document.getElementById("artworkSearchBtn").onclick = () => {
+  const q = document.getElementById("artworkSearchInput").value.trim();
+  if (q) doArtworkSearch(q);
+};
+document.getElementById("artworkSearchInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    const q = document.getElementById("artworkSearchInput").value.trim();
+    if (q) doArtworkSearch(q);
+  }
+});
+
+async function doArtworkSearch(query) {
+  const grid = document.getElementById("artworkResults");
+  grid.innerHTML = `<div class="artwork-loading">Searching iTunes…</div>`;
+  const results = await searchArtwork(query);
+  if (!results.length) {
+    grid.innerHTML = `<div class="artwork-loading">No results found</div>`;
+    return;
+  }
+  grid.innerHTML = "";
+  results.forEach(r => {
+    const div = document.createElement("div");
+    div.className = "artwork-option";
+    div.innerHTML = `
+      <img src="${r.url}" alt="" loading="lazy">
+      <div class="art-label">${esc(r.track)} · ${esc(r.artist)}</div>
+    `;
+    div.addEventListener("click", async () => {
+      await setArtwork(artworkTrackId, r.url);
+      hideModal("artworkModal");
+      showToast("Artwork updated");
+    });
+    grid.appendChild(div);
+  });
+}
+
+// ── Modal helpers ─────────────────────────────────────────────────────────────
+
+function showModal(id) {
+  const el = document.getElementById(id);
+  el.classList.remove("hidden");
+}
+function hideModal(id) {
+  document.getElementById(id).classList.add("hidden");
+}
+
+// Close modals on overlay click
+document.querySelectorAll(".modal-overlay").forEach(el => {
+  el.addEventListener("click", (e) => {
+    if (e.target === el) el.classList.add("hidden");
+  });
+});
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+
+let toastTimeout;
+function showToast(msg) {
+  const toast = document.getElementById("toast");
+  toast.textContent = msg;
+  toast.classList.add("show");
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => toast.classList.remove("show"), 3000);
+}
+
+// ── Status helpers ────────────────────────────────────────────────────────────
+
+function statusBadge(t) {
+  const map = {
+    waiting:     ["badge-waiting",    "Waiting"],
+    searching:   ["badge-searching",  "Searching…"],
+    downloading: ["badge-downloading", Math.round(t.progress) + "%"],
+    tagging:     ["badge-tagging",    "Processing"],
+    done:        ["badge-done",       "Done"],
+    failed:      ["badge-failed",     "Failed"],
+  };
+  const [cls, label] = map[t.status] || ["badge-waiting", t.status];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+// ── Icons (inline SVG) ────────────────────────────────────────────────────────
+
+function musicNoteIcon() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`;
+}
+function downloadIcon() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
+}
+function linkIcon() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>`;
+}
+function imageIcon() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`;
+}
+function xIcon() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>`;
+}
+
+// ── Escape HTML ───────────────────────────────────────────────────────────────
+
+function esc(str) {
+  return String(str || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+// ── File drag & drop ──────────────────────────────────────────────────────────
+
+const dropZone = document.getElementById("dropZone");
+const csvInput = document.getElementById("csvInput");
+
+csvInput.addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (file) {
+    document.getElementById("dropLabel").textContent = file.name;
+    uploadCSV(file);
+  }
+});
+
+document.addEventListener("dragover",  (e) => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+document.addEventListener("dragleave", (e) => { if (!e.relatedTarget) dropZone.classList.remove("drag-over"); });
+document.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropZone.classList.remove("drag-over");
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith(".csv")) {
+    document.getElementById("dropLabel").textContent = file.name;
+    uploadCSV(file);
+  }
+});
+
+// ── Download all button ───────────────────────────────────────────────────────
+
+document.getElementById("btnDownloadAll").addEventListener("click", startDownloadAll);
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+connectWS();
+</script>
+</body>
+</html>
